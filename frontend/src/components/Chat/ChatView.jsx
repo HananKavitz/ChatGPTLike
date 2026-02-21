@@ -14,20 +14,12 @@ const ChatView = () => {
     loadSessions,
     loadMessages,
     selectSession,
-    newSession,
     isStreaming,
   } = useChat()
 
   useEffect(() => {
     loadSessions()
   }, []) // Only run on mount
-
-  useEffect(() => {
-    if (!currentSessionId) {
-      // Create a new session if none exists
-      newSession('New Chat')
-    }
-  }, [currentSessionId, newSession])
 
   // Load messages when current session changes (but not for newly created sessions)
   useEffect(() => {
