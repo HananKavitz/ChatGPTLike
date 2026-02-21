@@ -35,6 +35,11 @@ const ChartView = ({ visualization }) => {
     return null
   }
 
+  // Debug logging
+  console.log('ChartView - chart_type:', chart_type)
+  console.log('ChartView - chartData.data:', chartData?.data)
+  console.log('ChartView - chartData.valueKey:', chartData?.valueKey)
+
   if (!chartData || !chartData.data || chartData.data.length === 0) {
     return null
   }
@@ -42,6 +47,14 @@ const ChartView = ({ visualization }) => {
   const renderChart = () => {
     switch (chart_type.toLowerCase()) {
       case 'pie':
+        // Calculate total for debugging
+        const total = chartData.data.reduce((sum, item) => sum + (item.value || 0), 0)
+        console.log('Pie chart data summary:', {
+          dataPoints: chartData.data.length,
+          total,
+          dataValues: chartData.data.map(d => d.value)
+        })
+
         return (
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
@@ -50,7 +63,7 @@ const ChartView = ({ visualization }) => {
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent, value }) => `${name} ${(percent * 100).toFixed(0)}%`}
                 outerRadius={100}
                 fill="#8884d8"
                 dataKey={chartData.valueKey || 'value'}

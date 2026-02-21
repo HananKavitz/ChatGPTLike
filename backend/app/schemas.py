@@ -1,5 +1,5 @@
 """Pydantic schemas for request/response validation"""
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, model_validator
 from typing import Optional, List, Any, Dict
 from datetime import datetime
 
@@ -90,6 +90,7 @@ class MessageResponse(BaseModel):
     content: str
     is_edited: bool
     created_at: datetime
+    visualizations: List["VisualizationResponse"] = []
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -120,6 +121,28 @@ class VisualizationResponse(BaseModel):
     chart_config: Dict[str, Any]
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode='before')
+    @classmethod
+    def parse_chart_config(cls, data):
+        """Parse chart_config from JSON string if needed"""
+        if isinstance(data, dict):
+            if 'chart_config' in data and isinstance(data['chart_config'], str):
+                try:
+                    import json
+                    data['chart_config'] = json.loads(data['chart_config'])
+                except (json.JSONDecodeError, TypeError):
+                    data['chart_config'] = {}
+        elif hasattr(data, 'chart_config'):
+            # Handle database model objects
+            raw_value = data.chart_config
+            if isinstance(raw_value, str):
+                try:
+                    import json
+                    return {**data.__dict__, 'chart_config': json.loads(raw_value)}
+                except (json.JSONDecodeError, TypeError):
+                    return {**data.__dict__, 'chart_config': {}}
+        return data
 
 
 # Update forward references

@@ -106,19 +106,8 @@ export const useChat = () => {
       dispatch(setStreaming(false))
       dispatch(setLoading(false))
 
-      // Add the assistant message with final content after streaming completes
-      dispatch(
-        addMessage({
-          sessionId,
-          message: {
-            id: Date.now() + 1,
-            role: 'assistant',
-            content: assistantContent,
-            is_edited: false,
-            created_at: new Date().toISOString(),
-          },
-        })
-      )
+      // Reload messages to get visualizations that may have been created
+      await dispatch(fetchMessages(sessionId))
 
       dispatch(clearStreamingMessage())
     }
@@ -160,19 +149,8 @@ export const useChat = () => {
     } finally {
       dispatch(setStreaming(false))
 
-      // Add the regenerated message
-      dispatch(
-        addMessage({
-          sessionId: currentSessionId,
-          message: {
-            id: Date.now(),
-            role: 'assistant',
-            content: assistantContent,
-            is_edited: false,
-            created_at: new Date().toISOString(),
-          },
-        })
-      )
+      // Reload messages to get visualizations that may have been created
+      await dispatch(fetchMessages(currentSessionId))
 
       dispatch(clearStreamingMessage())
     }

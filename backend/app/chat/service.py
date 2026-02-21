@@ -1,11 +1,14 @@
 """Chat business logic"""
 from typing import List, Optional, AsyncIterator
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import func
+import json
+import os
 
-from ..models import ChatSession, Message, User
+from ..models import ChatSession, Message, User, UploadedFile, Visualization
 from ..schemas import MessageCreate, SessionCreate, SessionUpdate
 from .openai_client import OpenAIClient, format_messages_for_openai
+from ..config import settings
 
 
 class ChatService:
@@ -13,6 +16,93 @@ class ChatService:
 
     def __init__(self, db: Session):
         self.db = db
+
+    def _get_chart_generator_for_session(self, session_id: int):
+        """Get a chart generator for the first uploaded Excel file in a session"""
+        file = self.db.query(UploadedFile).filter(
+            UploadedFile.session_id == session_id
+        ).first()
+
+        if not file:
+            return None
+
+        # Use the file_path from the database (it's already the full path)
+        file_path = file.file_path
+
+        import logging
+        logging.info(f"Looking for file at: {file_path}")
+
+        if not os.path.exists(file_path):
+            logging.warning(f"File does not exist at path: {file_path}")
+            # Try alternative path using UPLOAD_DIR
+            alt_path = os.path.join(settings.UPLOAD_DIR, file.filename)
+            logging.info(f"Trying alternative path: {alt_path}")
+            if os.path.exists(alt_path):
+                file_path = alt_path
+            else:
+                return None
+
+        logging.info(f"File found, creating chart generator")
+        from ..chart.chart_generator import ChartGenerator
+        return ChartGenerator(file_path)
+
+    def _create_visualization(self, message_id: int, chart_type: str, chart_config: dict) -> Visualization:
+        """Create a visualization record"""
+        viz = Visualization(
+            message_id=message_id,
+            chart_type=chart_type,
+            chart_config=json.dumps(chart_config)
+        )
+        self.db.add(viz)
+        self.db.commit()
+        self.db.refresh(viz)
+        return viz
+
+    def _detect_and_create_chart(self, user_message: str, message_id: int, session_id: int) -> Optional[Visualization]:
+        """
+        Detect if user wants a chart and create visualization.
+
+        Returns:
+            Visualization object if chart was created, None otherwise
+        """
+        import logging
+        logging.info(f"Detecting chart request for message: {user_message[:100]}")
+
+        from ..chart.chart_generator import parse_chart_request
+
+        chart_request = parse_chart_request(user_message)
+        if not chart_request:
+            logging.info("No chart request detected")
+            return None
+
+        logging.info(f"Chart request detected: {chart_request}")
+
+        generator = self._get_chart_generator_for_session(session_id)
+        if not generator:
+            logging.warning("No chart generator created - no file or file not found")
+            return None
+
+        try:
+            logging.info(f"Generating {chart_request['chart_type']} chart...")
+            chart_config = generator.auto_generate_chart(
+                chart_type=chart_request["chart_type"],
+                label_column=chart_request.get("label_column"),
+                value_column=chart_request.get("value_column")
+            )
+            logging.info(f"Chart config generated successfully")
+            viz = self._create_visualization(message_id, chart_request["chart_type"], chart_config)
+            logging.info(f"Visualization created with id: {viz.id}")
+            return viz
+        except ValueError as e:
+            # This is a data-related error - let AI explain the issue
+            logging.warning(f"Chart generation failed (data issue): {e}")
+            # Don't return None - let the AI's text response explain the issue
+            return None
+        except Exception as e:
+            import traceback
+            logging.error(f"Failed to generate chart (unexpected error): {e}")
+            logging.error(traceback.format_exc())
+            return None
 
     def get_user_sessions(self, user_id: int) -> List[ChatSession]:
         """Get all sessions for a user"""
@@ -65,7 +155,9 @@ class ChatService:
         if not session:
             return []
 
-        return self.db.query(Message).filter(
+        return self.db.query(Message).options(
+            selectinload(Message.visualizations)
+        ).filter(
             Message.session_id == session_id
         ).order_by(Message.created_at.asc()).all()
 
@@ -128,12 +220,21 @@ class ChatService:
             is_edited=False
         )
         self.db.add(assistant_message)
+        self.db.commit()
+        self.db.refresh(assistant_message)
+
+        # Detect and create chart visualization if requested
+        chart_viz = self._detect_and_create_chart(
+            message_data.content,
+            assistant_message.id,
+            session_id
+        )
+        if chart_viz:
+            self.db.refresh(assistant_message)
 
         # Update session updated_at
         session.updated_at = func.now()
-
         self.db.commit()
-        self.db.refresh(assistant_message)
 
         return assistant_message
 
@@ -197,10 +298,18 @@ class ChatService:
             is_edited=False
         )
         self.db.add(assistant_message)
+        self.db.commit()
+        self.db.refresh(assistant_message)
+
+        # Detect and create chart visualization if requested
+        chart_viz = self._detect_and_create_chart(
+            message_data.content,
+            assistant_message.id,
+            session_id
+        )
 
         # Update session updated_at
         session.updated_at = func.now()
-
         self.db.commit()
         self.db.refresh(assistant_message)
 
@@ -266,4 +375,19 @@ class ChatService:
         message.content = ai_content
         message.is_edited = True
         self.db.commit()
+        self.db.refresh(message)
+
+        # Detect and create chart visualization if requested (need to get user message)
+        previous_user_msg = self.db.query(Message).filter(
+            Message.session_id == session_id,
+            Message.id < message_id,
+            Message.role == "user"
+        ).order_by(Message.id.desc()).first()
+
+        if previous_user_msg:
+            self._detect_and_create_chart(
+                previous_user_msg.content,
+                message.id,
+                session_id
+            )
         self.db.refresh(message)

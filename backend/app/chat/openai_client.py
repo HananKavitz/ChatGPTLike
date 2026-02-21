@@ -29,6 +29,8 @@ class OpenAIClient:
             Response content chunks if streaming, full content if not
         """
         try:
+            import logging
+            logging.info(f"OpenAI API call: model={model}, stream={stream}, messages={len(messages)}")
             response = await self.client.chat.completions.create(
                 model=model,
                 messages=messages,
@@ -66,7 +68,17 @@ def format_messages_for_openai(
     # Add system message with file context if available
     system_content = "You are a helpful AI assistant."
     if file_context:
-        system_content += f"\n\nYou have access to the following data from uploaded files:\n{file_content}\n\nWhen asked about data, analyze it and provide insights. For visualizations, suggest appropriate chart types and configurations."
+        system_content += f"\n\nYou have access to the following data from uploaded files:\n{file_context}\n\n"
+        system_content += "When asked about charts or visualizations:"
+        system_content += "- Directly analyze the data and provide insights"
+        system_content += "- Describe what the visualization would show"
+        system_content += "- Explain patterns and trends you observe"
+        system_content += "- DO NOT provide code, tutorials, or instructions on how to create charts"
+        system_content += "- The system will automatically generate the actual chart visualization for you"
+        system_content += "- Focus on interpreting the data, not explaining how to visualize it"
+        system_content += "\n\nExample of how to respond:"
+        system_content += "User: 'Create a pie chart showing sales by region'"
+        system_content += "Response: 'Here's a pie chart showing sales distribution by region. The West region has the highest sales at 45%, followed by the East region at 30%. The North and South regions contribute 15% and 10% respectively. This suggests the Western market is our strongest performing area.'"
 
     formatted.append({"role": "system", "content": system_content})
 

@@ -9,7 +9,7 @@ from ..database import get_db
 from ..models import User, Message, ChatSession
 from ..schemas import (
     SessionCreate, SessionUpdate, SessionResponse, SessionDetail,
-    MessageCreate, MessageUpdate, MessageResponse
+    MessageCreate, MessageUpdate, MessageResponse, VisualizationResponse
 )
 from ..dependencies import get_current_user
 from .service import ChatService
@@ -113,10 +113,15 @@ def get_messages(
 async def message_generator(message_stream):
     """Generator for SSE streaming"""
     try:
+        import logging
+        logging.info("Starting message stream")
         async for chunk in message_stream:
             yield f"data: {json.dumps({'content': chunk, 'done': False})}\n\n"
         yield f"data: {json.dumps({'content': '', 'done': True})}\n\n"
+        logging.info("Message stream completed successfully")
     except Exception as e:
+        import logging
+        logging.error(f"Error in message stream: {type(e).__name__}: {e}")
         yield f"data: {json.dumps({'error': str(e), 'done': True})}\n\n"
 
 
@@ -148,10 +153,14 @@ async def send_message(
         import pandas as pd
         import os
         from ..config import settings
+        import logging
 
         file_info = []
         for file in files:
-            file_path = os.path.join(settings.UPLOAD_DIR, file.filename)
+            # Use the file_path from database (it's already the full path)
+            file_path = file.file_path
+            logging.info(f"Reading file for context: {file_path}")
+
             if os.path.exists(file_path):
                 try:
                     df = pd.read_excel(file_path, nrows=5)  # Preview first 5 rows
@@ -161,11 +170,29 @@ async def send_message(
                         f"Preview:\n{df.to_string(index=False)}\n"
                         f"Total rows: {len(pd.read_excel(file_path))}"
                     )
-                except Exception:
+                    logging.info(f"File context generated successfully for {file.original_filename}")
+                except Exception as e:
+                    logging.error(f"Error reading file for context: {e}")
                     file_info.append(f"File: {file.original_filename}")
+            else:
+                logging.warning(f"File not found at path: {file_path}")
+                # Try alternative path
+                alt_path = os.path.join(settings.UPLOAD_DIR, file.filename)
+                if os.path.exists(alt_path):
+                    try:
+                        df = pd.read_excel(alt_path, nrows=5)
+                        file_info.append(
+                            f"File: {file.original_filename}\n"
+                            f"Columns: {', '.join(df.columns.tolist())}\n"
+                            f"Preview:\n{df.to_string(index=False)}\n"
+                            f"Total rows: {len(pd.read_excel(alt_path))}"
+                        )
+                    except Exception:
+                        file_info.append(f"File: {file.original_filename}")
 
         if file_info:
             file_context = "\n\n".join(file_info)
+            logging.info(f"File context generated for {len(files)} file(s)")
 
     if message_data.stream:
         message_stream = service.stream_message(

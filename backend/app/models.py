@@ -86,3 +86,14 @@ class Visualization(Base):
 
     # Relationships
     message = relationship("Message", back_populates="visualizations")
+
+    @property
+    def chart_config_dict(self) -> dict:
+        """Return chart_config as a parsed dictionary"""
+        if isinstance(self.chart_config, dict):
+            return self.chart_config
+        try:
+            import json
+            return json.loads(self.chart_config) if self.chart_config else {}
+        except (json.JSONDecodeError, TypeError):
+            return {}

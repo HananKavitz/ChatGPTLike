@@ -1,0 +1,24 @@
+{
+  "name": "chatgptlike",
+  "version": "1.0.0",
+  "description": "A ChatGPT-like application with Excel file analysis capabilities, built with React, FastAPI, and PostgreSQL.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HananKavitz/ChatGPTLike.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/HananKavitz/ChatGPTLike/issues"
+  },
+  "homepage": "https://github.com/HananKavitz/ChatGPTLike#readme",
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  }
+}
