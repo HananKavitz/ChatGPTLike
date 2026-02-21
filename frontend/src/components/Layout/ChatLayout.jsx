@@ -1,18 +1,25 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, useNavigate } from 'react-router-dom'
 import SessionSidebar from '../Session/SessionSidebar'
 import ChatView from '../Chat/ChatView'
 import { useAuth } from '../../hooks/useAuth'
+import { useChat } from '../../hooks/useChat'
 import { Settings, LogOut } from 'lucide-react'
 import { useState } from 'react'
 
 const ChatLayout = () => {
   const { user, handleLogout, requireAuth } = useAuth()
-  const [showSettings, setShowSettings] = useState(false)
+  const { newSession } = useChat()
+  const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
   requireAuth()
 
   if (!user) return null
+
+  const handleNewChat = async () => {
+    await newSession()
+    navigate('/')
+  }
 
   return (
     <div className="flex h-screen bg-bg-primary">
@@ -22,7 +29,7 @@ const ChatLayout = () => {
           {/* New Chat Button */}
           <div className="p-3">
             <button
-              onClick={() => window.location.reload()}
+              onClick={handleNewChat}
               className="w-full flex items-center gap-3 px-3 py-3 bg-bg-input hover:bg-bg-hover rounded-lg border border-border text-text-primary transition-colors"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -34,13 +41,13 @@ const ChatLayout = () => {
 
           {/* Session List */}
           <div className="flex-1 overflow-y-auto px-2">
-            <SessionSidebar />
+            <SessionSidebar onSelect={() => navigate('/')} />
           </div>
 
           {/* User Menu */}
           <div className="p-3 border-t border-border">
             <button
-              onClick={() => setShowSettings(true)}
+              onClick={() => navigate('/settings')}
               className="w-full flex items-center gap-3 px-3 py-3 hover:bg-bg-hover rounded-lg text-text-primary transition-colors"
             >
               <Settings size={20} />

@@ -2,8 +2,13 @@ import { useChat } from '../../hooks/useChat'
 import SessionItem from './SessionItem'
 import { MessageSquare } from 'lucide-react'
 
-const SessionSidebar = () => {
+const SessionSidebar = ({ onSelect }) => {
   const { sessions, currentSessionId, selectSession, removeSession, renameSession } = useChat()
+
+  const handleSelectSession = async (sessionId) => {
+    await selectSession(sessionId)
+    onSelect?.()
+  }
 
   if (sessions.length === 0) {
     return (
@@ -22,7 +27,7 @@ const SessionSidebar = () => {
           key={session.id}
           session={session}
           isActive={currentSessionId === session.id}
-          onSelect={() => selectSession(session.id)}
+          onSelect={() => handleSelectSession(session.id)}
           onDelete={() => removeSession(session.id)}
           onRename={(name) => renameSession(session.id, name)}
         />

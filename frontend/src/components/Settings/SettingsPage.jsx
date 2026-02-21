@@ -95,7 +95,7 @@ const SettingsPage = () => {
                 <input
                   id="apiKey"
                   type={showApiKey ? 'text' : 'password'}
-                  value={user?.openai_api_key ? (apiKey || '••••••••••••••••') : ''}
+                  value={user?.openai_api_key && apiKey.length === 0 ? '••••••••••••••••' : apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   placeholder="sk-..."
                   className="w-full px-4 py-3 pr-12 bg-bg-input border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-accent"
