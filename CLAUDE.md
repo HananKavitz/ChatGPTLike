@@ -6,6 +6,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ChatGPTLike is a React-based frontend application that mimics ChatGPT's chat interface, integrating with OpenAI's API for AI responses. The project uses Tailwind CSS for styling.
 
+## Specialized Agents
+
+When working in this repository, use the appropriate specialized agent for different types of tasks:
+
+- **@product-owner**: Use for product-related activities such as defining requirements, clarifying user stories, refining feature specifications, and making product decisions about priorities and scope.
+
+- **@react-redux-developer**: Use for frontend development tasks including:
+  - Creating or modifying React components
+  - Implementing state management with Redux Toolkit
+  - Setting up store configuration
+  - Writing action creators and reducers
+  - Integrating React with Redux
+  - React component debugging and refactoring
+
+- **@python-fastapi-backend**: Use for backend development tasks including:
+  - Creating FastAPI endpoints
+  - Designing REST API structure
+  - Database operations and models
+  - Backend architecture design
+  - Setting up database connections and migrations
+
 ## Common Commands
 
 ```bash
