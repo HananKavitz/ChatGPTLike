@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { updateMe } from '../../store/slices/authSlice'
-import { Eye, EyeOff, Save, Key, Building2, Lock } from 'lucide-react'
+import { Eye, EyeOff, Save, Key, Building2, Lock, CheckCircle, XCircle, Loader2 } from 'lucide-react'
 
 const SettingsPage = () => {
   const dispatch = useDispatch()
@@ -15,6 +15,52 @@ const SettingsPage = () => {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [message, setMessage] = useState(null)
+  const [verifyingKey, setVerifyingKey] = useState(false)
+  const [keyStatus, setKeyStatus] = useState(null) // 'valid' | 'invalid' | null
+
+  const handleApiKeyKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      // Don't submit form on Enter in API key field
+    }
+  }
+
+  const verifyApiKey = async () => {
+    if (!apiKey || apiKey === '••••••••••••••••') {
+      setMessage({ type: 'error', text: 'Please enter an API key to verify' })
+      return
+    }
+
+    setVerifyingKey(true)
+    setKeyStatus(null)
+
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch('http://localhost:8000/api/auth/verify-api-key', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ api_key: apiKey })
+      })
+
+      const data = await response.json()
+
+      if (data.valid) {
+        setKeyStatus('valid')
+        setMessage({ type: 'success', text: data.message })
+      } else {
+        setKeyStatus('invalid')
+        setMessage({ type: 'error', text: data.message })
+      }
+    } catch (error) {
+      setKeyStatus('invalid')
+      setMessage({ type: 'error', text: 'Failed to verify API key. Please try again.' })
+    } finally {
+      setVerifyingKey(false)
+    }
+  }
 
   const handleSave = async (e) => {
     e.preventDefault()
@@ -96,17 +142,40 @@ const SettingsPage = () => {
                   id="apiKey"
                   type={showApiKey ? 'text' : 'password'}
                   value={user?.openai_api_key && apiKey.length === 0 ? '••••••••••••••••' : apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
+                  onChange={(e) => {
+                    setApiKey(e.target.value)
+                    setKeyStatus(null) // Reset status when typing
+                  }}
+                  onKeyDown={handleApiKeyKeyDown}
                   placeholder="sk-..."
-                  className="w-full px-4 py-3 pr-12 bg-bg-input border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-accent"
+                  className="w-full px-4 py-3 pr-28 bg-bg-input border border-border rounded-lg text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-accent"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
-                >
-                  {showApiKey ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="text-text-secondary hover:text-text-primary p-1"
+                  >
+                    {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={verifyApiKey}
+                    disabled={verifyingKey || !apiKey || apiKey === '••••••••••••••••'}
+                    className="text-text-secondary hover:text-accent disabled:opacity-50 disabled:cursor-not-allowed p-1"
+                    title="Verify API Key"
+                  >
+                    {verifyingKey ? (
+                      <Loader2 size={18} className="animate-spin" />
+                    ) : keyStatus === 'valid' ? (
+                      <CheckCircle size={18} className="text-green-500" />
+                    ) : keyStatus === 'invalid' ? (
+                      <XCircle size={18} className="text-red-500" />
+                    ) : (
+                      <CheckCircle size={18} />
+                    )}
+                  </button>
+                </div>
               </div>
               <p className="text-xs text-text-secondary">
                 Your API key is stored securely and used to make requests to OpenAI. Get your key from{' '}
@@ -118,7 +187,7 @@ const SettingsPage = () => {
                 >
                   OpenAI Platform
                 </a>
-                .
+                . Click the checkmark icon to verify your key before saving.
               </p>
             </div>
           </div>

@@ -1,14 +1,25 @@
 """Authentication endpoints"""
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+import logging
 from datetime import timedelta
+from typing import Optional
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from ..config import settings
 from ..database import get_db
 from ..models import User
-from ..schemas import UserRegister, UserLogin, Token, UserResponse, UserUpdate
-from ..config import settings
-from .security import verify_password, get_password_hash, create_access_token
-from .dependencies import get_current_user
+from ..schemas import Token, UserLogin, UserRegister, UserResponse, UserUpdate
+from ..auth.dependencies import get_current_user
+from ..auth.security import create_access_token, get_password_hash, verify_password
+
+logger = logging.getLogger(__name__)
+
+
+class ApiKeyVerify(BaseModel):
+    """Schema for API key verification"""
+    api_key: str
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
@@ -87,3 +98,50 @@ def update_me(
     db.refresh(current_user)
 
     return current_user
+
+
+@router.post("/verify-api-key")
+async def verify_api_key(
+    verify_data: ApiKeyVerify,
+    current_user: User = Depends(get_current_user)
+):
+    """Verify if an OpenAI API key is valid"""
+    logger.info(f"Verifying API key for user {current_user.id}")
+
+    try:
+        from openai import AsyncOpenAI
+
+        client = AsyncOpenAI(api_key=verify_data.api_key)
+
+        # Make a simple test request to verify the key
+        logger.debug("Sending test request to OpenAI API")
+        response = await client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": "test"}],
+            max_tokens=1
+        )
+
+        logger.info(f"API key verification successful for user {current_user.id}")
+        return {
+            "valid": True,
+            "message": "API key is valid"
+        }
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"API key verification failed for user {current_user.id}: {error_msg}", exc_info=True)
+
+        if "401" in error_msg or "Unauthorized" in error_msg:
+            return {
+                "valid": False,
+                "message": "Invalid API key"
+            }
+        elif "429" in error_msg or "quota" in error_msg.lower():
+            return {
+                "valid": False,
+                "message": "API key has no credits or quota exceeded"
+            }
+        else:
+            return {
+                "valid": False,
+                "message": f"API key verification failed: {error_msg}"
+            }

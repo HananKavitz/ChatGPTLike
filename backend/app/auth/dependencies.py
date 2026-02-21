@@ -12,7 +12,7 @@ from .security import decode_access_token
 security = HTTPBearer()
 
 
-async def get_current_user(
+def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ) -> User:
@@ -29,8 +29,14 @@ async def get_current_user(
     if payload is None:
         raise credentials_exception
 
-    user_id: Optional[int] = payload.get("sub")
+    user_id = payload.get("sub")
     if user_id is None:
+        raise credentials_exception
+
+    # Convert string to int since JWT stores sub as string
+    try:
+        user_id = int(user_id)
+    except (ValueError, TypeError):
         raise credentials_exception
 
     user = db.query(User).filter(User.id == user_id).first()
@@ -40,7 +46,7 @@ async def get_current_user(
     return user
 
 
-async def get_current_user_optional(
+def get_current_user_optional(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
     db: Session = Depends(get_db)
 ) -> Optional[User]:
@@ -49,6 +55,6 @@ async def get_current_user_optional(
         return None
 
     try:
-        return await get_current_user(credentials, db)
+        return get_current_user(credentials, db)
     except HTTPException:
         return None
