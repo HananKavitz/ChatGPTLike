@@ -1,4 +1,5 @@
 import { useDispatch, useSelector } from 'react-redux'
+import { useCallback } from 'react'
 import {
   fetchSessions,
   createSession,
@@ -27,44 +28,44 @@ export const useChat = () => {
 
   const { streaming: isStreaming } = useSelector((state) => state.ui)
 
-  const loadSessions = async () => {
+  const loadSessions = useCallback(() => {
     dispatch(fetchSessions())
-  }
+  }, [dispatch])
 
-  const newSession = async (name = null) => {
+  const newSession = useCallback(async (name = null) => {
     const result = await dispatch(createSession(name))
     return result.payload
-  }
+  }, [dispatch])
 
-  const renameSession = async (sessionId, name) => {
+  const renameSession = useCallback(async (sessionId, name) => {
     await dispatch(updateSession({ sessionId, name }))
-  }
+  }, [dispatch])
 
-  const removeSession = async (sessionId) => {
+  const removeSession = useCallback(async (sessionId) => {
     await dispatch(deleteSession(sessionId))
-  }
+  }, [dispatch])
 
-  const selectSession = async (sessionId) => {
+  const selectSession = useCallback(async (sessionId) => {
     dispatch(setCurrentSession(sessionId))
     if (sessionId && !messages[sessionId]) {
       await dispatch(fetchMessages(sessionId))
       await dispatch(fetchFiles(sessionId))
     }
-  }
+  }, [dispatch, messages])
 
-  const loadMessages = async (sessionId) => {
+  const loadMessages = useCallback(async (sessionId) => {
     if (sessionId) {
       await dispatch(fetchMessages(sessionId))
     }
-  }
+  }, [dispatch])
 
-  const loadFiles = async (sessionId) => {
+  const loadFiles = useCallback(async (sessionId) => {
     if (sessionId) {
       await dispatch(fetchFiles(sessionId))
     }
-  }
+  }, [dispatch])
 
-  const sendMessage = async (sessionId, content) => {
+  const sendMessage = useCallback(async (sessionId, content) => {
     if (!sessionId || !content.trim()) return
 
     dispatch(setLoading(true))
@@ -135,9 +136,9 @@ export const useChat = () => {
 
       dispatch(clearStreamingMessage())
     }
-  }
+  }, [dispatch, currentSessionId])
 
-  const regenerateMessage = async (messageId) => {
+  const regenerateMessage = useCallback(async (messageId) => {
     if (!currentSessionId) return
 
     dispatch(setStreaming(true))
@@ -190,7 +191,7 @@ export const useChat = () => {
 
       dispatch(clearStreamingMessage())
     }
-  }
+  }, [dispatch, currentSessionId, messages])
 
   return {
     sessions,

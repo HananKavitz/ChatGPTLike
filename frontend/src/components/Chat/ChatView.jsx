@@ -19,7 +19,7 @@ const ChatView = () => {
 
   useEffect(() => {
     loadSessions()
-  }, [loadSessions])
+  }, []) // Only run on mount
 
   useEffect(() => {
     if (!currentSessionId) {

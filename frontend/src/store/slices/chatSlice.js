@@ -149,13 +149,21 @@ const chatSlice = createSlice({
         }
       })
       // Delete Session
+      .addCase(deleteSession.pending, (state) => {
+        state.loading = true
+      })
       .addCase(deleteSession.fulfilled, (state, action) => {
+        state.loading = false
         state.sessions = state.sessions.filter(s => s.id !== action.payload)
         if (state.currentSessionId === action.payload) {
           state.currentSessionId = null
         }
         delete state.messages[action.payload]
         delete state.uploadedFiles[action.payload]
+      })
+      .addCase(deleteSession.rejected, (state, action) => {
+        state.loading = false
+        state.error = action.payload
       })
       // Fetch Messages
       .addCase(fetchMessages.fulfilled, (state, action) => {
