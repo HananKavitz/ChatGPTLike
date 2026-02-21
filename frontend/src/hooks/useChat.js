@@ -9,6 +9,7 @@ import {
   fetchFiles,
   setCurrentSession,
   addMessage,
+  removeMessagesAfter,
   setStreamingMessage,
   clearStreamingMessage,
 } from '../store/slices/chatSlice'
@@ -53,7 +54,7 @@ export const useChat = () => {
     }
   }, [dispatch, messages])
 
-  const loadMessages = useCallback(async (sessionId) => {
+  const loadMessages = useCallback(async (sessionId, force = false) => {
     if (sessionId) {
       await dispatch(fetchMessages(sessionId))
     }
@@ -85,21 +86,6 @@ export const useChat = () => {
       })
     )
 
-    // Create placeholder for assistant message
-    const assistantMessageId = Date.now() + 1
-    dispatch(
-      addMessage({
-        sessionId,
-        message: {
-          id: assistantMessageId,
-          role: 'assistant',
-          content: '',
-          is_edited: false,
-          created_at: new Date().toISOString(),
-        },
-      })
-    )
-
     let assistantContent = ''
 
     try {
@@ -120,12 +106,12 @@ export const useChat = () => {
       dispatch(setStreaming(false))
       dispatch(setLoading(false))
 
-      // Update the assistant message with final content
+      // Add the assistant message with final content after streaming completes
       dispatch(
         addMessage({
           sessionId,
           message: {
-            id: Date.now() + 2,
+            id: Date.now() + 1,
             role: 'assistant',
             content: assistantContent,
             is_edited: false,
@@ -152,9 +138,8 @@ export const useChat = () => {
       return
     }
 
-    // Remove all messages after the target message
-    const messagesToKeep = sessionMessages.slice(0, messageIndex)
-    messages[currentSessionId] = messagesToKeep
+    // Remove all messages after the target message (proper Redux action)
+    dispatch(removeMessagesAfter({ sessionId: currentSessionId, messageId }))
 
     let assistantContent = ''
 
@@ -193,6 +178,8 @@ export const useChat = () => {
     }
   }, [dispatch, currentSessionId, messages])
 
+  const { streamingMessage } = useSelector((state) => state.chat)
+
   return {
     sessions,
     currentSessionId,
@@ -201,6 +188,7 @@ export const useChat = () => {
     loading,
     error,
     isStreaming,
+    streamingMessage,
     loadSessions,
     newSession,
     renameSession,

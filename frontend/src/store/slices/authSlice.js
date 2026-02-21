@@ -108,7 +108,15 @@ const authSlice = createSlice({
       })
       .addCase(getMe.fulfilled, (state, action) => {
         state.loading = false
-        state.user = action.payload
+        // Merge the response with existing user data, preserving existing fields that aren't in response
+        if (state.user) {
+          state.user = {
+            ...state.user,
+            ...action.payload
+          }
+        } else {
+          state.user = action.payload
+        }
         state.isAuthenticated = true
       })
       .addCase(getMe.rejected, (state) => {
@@ -125,7 +133,20 @@ const authSlice = createSlice({
       })
       .addCase(updateMe.fulfilled, (state, action) => {
         state.loading = false
-        state.user = action.payload
+        // Merge the response with existing user data, preserving openai_api_key from request
+        if (state.user) {
+          state.user = {
+            ...state.user,
+            ...action.payload,
+            // Preserve the openai_api_key from the request since backend doesn't return it
+            ...(action.meta.arg?.openai_api_key ? { openai_api_key: action.meta.arg.openai_api_key } : {})
+          }
+        } else {
+          state.user = {
+            ...action.payload,
+            ...(action.meta.arg?.openai_api_key ? { openai_api_key: action.meta.arg.openai_api_key } : {})
+          }
+        }
       })
       .addCase(updateMe.rejected, (state, action) => {
         state.loading = false

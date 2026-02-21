@@ -19,6 +19,11 @@ class User(Base):
     # Relationships
     sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")
 
+    @property
+    def has_api_key(self) -> bool:
+        """Check if user has an API key set"""
+        return bool(self.openai_api_key and self.openai_api_key.strip())
+
 
 class ChatSession(Base):
     """Chat session model"""

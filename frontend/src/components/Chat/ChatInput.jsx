@@ -37,7 +37,7 @@ const ChatInput = ({ sessionId, disabled = false }) => {
 
   return (
     <form onSubmit={handleSubmit} className="relative">
-      {!user?.openai_api_key && (
+      {!user?.has_api_key && (
         <div className="mb-2 p-2 bg-yellow-900/20 border border-yellow-500 text-yellow-400 rounded text-sm text-center">
           Please add your OpenAI API key in{' '}
           <a href="/settings" className="underline hover:text-yellow-300">

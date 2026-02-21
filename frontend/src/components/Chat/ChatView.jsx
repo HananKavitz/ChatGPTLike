@@ -12,6 +12,7 @@ const ChatView = () => {
     messages,
     uploadedFiles,
     loadSessions,
+    loadMessages,
     selectSession,
     newSession,
     isStreaming,
@@ -27,6 +28,13 @@ const ChatView = () => {
       newSession('New Chat')
     }
   }, [currentSessionId, newSession])
+
+  // Load messages when current session changes (but not for newly created sessions)
+  useEffect(() => {
+    if (currentSessionId && !messages[currentSessionId]) {
+      loadMessages(currentSessionId)
+    }
+  }, [currentSessionId, loadMessages, messages])
 
   if (!currentSessionId) {
     return (
@@ -53,7 +61,7 @@ const ChatView = () => {
 
       {/* Chat Input */}
       <div className="px-4 pb-4 bg-bg-primary">
-        <ChatInput sessionId={currentSessionId} disabled={isStreaming || !user?.openai_api_key} />
+        <ChatInput sessionId={currentSessionId} disabled={isStreaming || !user?.has_api_key} />
       </div>
     </div>
   )

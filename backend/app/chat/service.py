@@ -99,7 +99,7 @@ class ChatService:
         # Get conversation history
         messages = self.db.query(Message).filter(
             Message.session_id == session_id,
-            Message.id < user_message.id
+            Message.id <= user_message.id
         ).order_by(Message.created_at.asc()).all()
 
         # Format messages for OpenAI
@@ -167,7 +167,7 @@ class ChatService:
         # Get conversation history
         messages = self.db.query(Message).filter(
             Message.session_id == session_id,
-            Message.id < user_message.id
+            Message.id <= user_message.id
         ).order_by(Message.created_at.asc()).all()
 
         # Format messages for OpenAI

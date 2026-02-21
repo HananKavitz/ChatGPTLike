@@ -99,6 +99,16 @@ const chatSlice = createSlice({
       }
       state.messages[sessionId].push(message)
     },
+    removeMessagesAfter: (state, action) => {
+      const { sessionId, messageId } = action.payload
+      const sessionMessages = state.messages[sessionId]
+      if (sessionMessages) {
+        const index = sessionMessages.findIndex(m => m.id === messageId)
+        if (index !== -1) {
+          state.messages[sessionId] = sessionMessages.slice(0, index + 1)
+        }
+      }
+    },
     updateMessage: (state, action) => {
       const { sessionId, messageId, content } = action.payload
       const messages = state.messages[sessionId]
@@ -111,8 +121,7 @@ const chatSlice = createSlice({
       }
     },
     setStreamingMessage: (state, action) => {
-      const { sessionId, content } = action.payload
-      state.streamingMessage = content
+      state.streamingMessage = action.payload
     },
     clearStreamingMessage: (state) => {
       state.streamingMessage = null
@@ -130,6 +139,10 @@ const chatSlice = createSlice({
       .addCase(fetchSessions.fulfilled, (state, action) => {
         state.loading = false
         state.sessions = action.payload
+        // Set current session to the most recent one if not set
+        if (!state.currentSessionId && action.payload.length > 0) {
+          state.currentSessionId = action.payload[0].id
+        }
       })
       .addCase(fetchSessions.rejected, (state, action) => {
         state.loading = false
@@ -182,6 +195,7 @@ export const {
   setCurrentSession,
   clearCurrentSession,
   addMessage,
+  removeMessagesAfter,
   updateMessage,
   setStreamingMessage,
   clearStreamingMessage,

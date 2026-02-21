@@ -34,6 +34,7 @@ class UserResponse(BaseModel):
     id: int
     email: str
     openai_model: str
+    has_api_key: bool = False
     model_config = ConfigDict(from_attributes=True)
 
 
