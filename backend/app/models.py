@@ -14,6 +14,14 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     openai_api_key = Column(Text, nullable=True)
     openai_model = Column(String(50), nullable=False, default="gpt-4")
+
+    # Multi-provider fields
+    llm_provider = Column(String(20), nullable=False, default="openai")  # 'openai', 'anthropic', or 'openrouter'
+    anthropic_api_key = Column(Text, nullable=True)
+    anthropic_model = Column(String(50), nullable=True, default="claude-opus-4-6")
+    openrouter_api_key = Column(Text, nullable=True)
+    openrouter_model = Column(String(100), nullable=True, default="anthropic/claude-3.5-sonnet-20241022")
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
@@ -21,8 +29,14 @@ class User(Base):
 
     @property
     def has_api_key(self) -> bool:
-        """Check if user has an API key set"""
-        return bool(self.openai_api_key and self.openai_api_key.strip())
+        """Check if user has an API key set for the selected provider"""
+        if self.llm_provider == "openai":
+            return bool(self.openai_api_key and self.openai_api_key.strip())
+        elif self.llm_provider == "anthropic":
+            return bool(self.anthropic_api_key and self.anthropic_api_key.strip())
+        elif self.llm_provider == "openrouter":
+            return bool(self.openrouter_api_key and self.openrouter_api_key.strip())
+        return False
 
 
 class ChatSession(Base):

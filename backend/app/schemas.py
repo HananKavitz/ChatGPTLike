@@ -35,6 +35,9 @@ class UserResponse(BaseModel):
     email: str
     openai_model: str
     has_api_key: bool = False
+    llm_provider: str = "openai"
+    anthropic_model: Optional[str] = None
+    openrouter_model: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -43,6 +46,13 @@ class UserUpdate(BaseModel):
     openai_api_key: Optional[str] = None
     openai_model: Optional[str] = None
     password: Optional[str] = Field(None, min_length=6)
+
+    # Multi-provider fields
+    llm_provider: Optional[str] = Field(None, pattern="^(openai|anthropic|openrouter)$")  # Validate provider name
+    anthropic_api_key: Optional[str] = None
+    anthropic_model: Optional[str] = None
+    openrouter_api_key: Optional[str] = None
+    openrouter_model: Optional[str] = None
 
 
 # Chat Session Schemas
@@ -118,30 +128,23 @@ class VisualizationResponse(BaseModel):
     """Visualization response schema"""
     id: int
     chart_type: str
-    chart_config: Dict[str, Any]
+    chart_config: Any
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
     @model_validator(mode='before')
-    @classmethod
     def parse_chart_config(cls, data):
         """Parse chart_config from JSON string if needed"""
-        if isinstance(data, dict):
-            if 'chart_config' in data and isinstance(data['chart_config'], str):
+        import json
+
+        if isinstance(data, dict) and 'chart_config' in data:
+            chart_config = data['chart_config']
+            if isinstance(chart_config, str):
                 try:
-                    import json
-                    data['chart_config'] = json.loads(data['chart_config'])
+                    data['chart_config'] = json.loads(chart_config)
                 except (json.JSONDecodeError, TypeError):
                     data['chart_config'] = {}
-        elif hasattr(data, 'chart_config'):
-            # Handle database model objects
-            raw_value = data.chart_config
-            if isinstance(raw_value, str):
-                try:
-                    import json
-                    return {**data.__dict__, 'chart_config': json.loads(raw_value)}
-                except (json.JSONDecodeError, TypeError):
-                    return {**data.__dict__, 'chart_config': {}}
+
         return data
 
 

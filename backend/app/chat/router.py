@@ -133,11 +133,12 @@ async def send_message(
     db: Session = Depends(get_db)
 ):
     """Send a message and get streaming AI response"""
-    # Check if user has API key
-    if not current_user.openai_api_key:
+    # Check if user has API key for their selected provider
+    if not current_user.has_api_key:
+        provider = getattr(current_user, 'llm_provider', 'openai')
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OpenAI API key not set. Please add it in settings."
+            detail=f"{provider.capitalize()} API key not set. Please add it in settings."
         )
 
     service = ChatService(db)
@@ -257,10 +258,11 @@ async def regenerate_message(
     db: Session = Depends(get_db)
 ):
     """Regenerate an AI message"""
-    if not current_user.openai_api_key:
+    if not current_user.has_api_key:
+        provider = getattr(current_user, 'llm_provider', 'openai')
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OpenAI API key not set. Please add it in settings."
+            detail=f"{provider.capitalize()} API key not set. Please add it in settings."
         )
 
     service = ChatService(db)

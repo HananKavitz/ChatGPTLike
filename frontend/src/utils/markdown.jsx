@@ -9,6 +9,11 @@ const CodeBlock = ({ className, children, ...props }) => {
   const match = /language-(\w+)/.exec(className || '')
   const language = match ? match[1] : ''
 
+  // Don't render chart code blocks - they're handled separately by ChartView component
+  if (language === 'chart') {
+    return null
+  }
+
   if (match) {
     return (
       <SyntaxHighlighter

@@ -7,7 +7,8 @@ import os
 
 from ..models import ChatSession, Message, User, UploadedFile, Visualization
 from ..schemas import MessageCreate, SessionCreate, SessionUpdate
-from .openai_client import OpenAIClient, format_messages_for_openai
+from .openai_client import format_messages_for_openai  # Keep for backward compatibility
+from .providers.factory import LLMProviderFactory
 from ..config import settings
 
 
@@ -16,6 +17,27 @@ class ChatService:
 
     def __init__(self, db: Session):
         self.db = db
+
+    def _get_llm_provider(self, user: User):
+        """Get the appropriate LLM provider based on user settings."""
+        provider_name = getattr(user, 'llm_provider', 'openai')  # Default to openai
+
+        if provider_name == 'openai':
+            api_key = user.openai_api_key
+            if not api_key:
+                raise ValueError("OpenAI API key not provided")
+        elif provider_name == 'anthropic':
+            api_key = getattr(user, 'anthropic_api_key', None)
+            if not api_key:
+                raise ValueError("Anthropic API key not provided")
+        elif provider_name == 'openrouter':
+            api_key = getattr(user, 'openrouter_api_key', None)
+            if not api_key:
+                raise ValueError("OpenRouter API key not provided")
+        else:
+            raise ValueError(f"Unsupported LLM provider: {provider_name}")
+
+        return LLMProviderFactory.create(provider_name, api_key)
 
     def _get_chart_generator_for_session(self, session_id: int):
         """Get a chart generator for the first uploaded Excel file in a session"""
@@ -200,17 +222,62 @@ class ChatService:
             for msg in messages
         ]
 
-        # Get AI response
-        client = OpenAIClient(api_key)
-        formatted_messages = format_messages_for_openai(history, file_context)
+        # Get AI response - check if we have user object to use provider pattern
+        user = self.db.query(User).filter(User.id == user_id).first()
+        provider_name = getattr(user, 'llm_provider', 'openai')  # Default to openai
+
+        if provider_name == 'openai' and api_key:
+            # Use legacy OpenAI client for backward compatibility
+            from .openai_client import OpenAIClient
+            client = OpenAIClient(api_key)
+            formatted_messages = format_messages_for_openai(history, file_context)
+        else:
+            # Use provider pattern
+            provider = self._get_llm_provider(user)
+
+            # Use provider-specific model
+            if provider_name == 'anthropic':
+                model = getattr(user, 'anthropic_model', 'claude-opus-4-6')
+            elif provider_name == 'openrouter':
+                model = getattr(user, 'openrouter_model', 'anthropic/claude-3.5-sonnet-20241022')
+            else:
+                model = user.openai_model
+
+            # Format messages with system prompt
+            system_prompt = None
+            if file_context:
+                system_prompt = "You are a helpful AI assistant."
+                system_prompt += f"\n\nYou have access to the following data from uploaded files:\n{file_context}\n\n"
+                system_prompt += "When asked about charts or visualizations:"
+                system_prompt += "- Directly analyze the data and provide insights"
+                system_prompt += "- Describe what the visualization would show"
+                system_prompt += "- Explain patterns and trends you observe"
+                system_prompt += "- DO NOT provide code, tutorials, or instructions on how to create charts"
+                system_prompt += "- The system will automatically generate the actual chart visualization for you"
+                system_prompt += "- Focus on interpreting the data, not explaining how to visualize it"
+                system_prompt += "\n\nExample of how to respond:"
+                system_prompt += "User: 'Create a pie chart showing sales by region'"
+                system_prompt += "Response: 'Here's a pie chart showing sales distribution by region. The West region has the highest sales at 45%, followed by the East region at 30%. The North and South regions contribute 15% and 10% respectively. This suggests the Western market is our strongest performing area.'"
+
+            formatted_messages = provider.format_messages(history, system_prompt)
 
         ai_content = ""
-        async for chunk in client.chat_completion(
-            messages=formatted_messages,
-            model=model,
-            stream=False  # We'll handle streaming at the router level
-        ):
-            ai_content += chunk
+        if provider_name == 'openai' and api_key and 'client' in locals():
+            # Use legacy OpenAI client
+            async for chunk in client.chat_completion(
+                messages=formatted_messages,
+                model=model,
+                stream=False  # We'll handle streaming at the router level
+            ):
+                ai_content += chunk
+        else:
+            # Use provider pattern
+            result = await provider.chat_completion(
+                messages=formatted_messages,
+                model=model,
+                stream=False
+            )
+            ai_content = result
 
         # Create assistant message
         assistant_message = Message(
@@ -277,18 +344,65 @@ class ChatService:
             for msg in messages
         ]
 
-        # Stream AI response
-        client = OpenAIClient(api_key)
-        formatted_messages = format_messages_for_openai(history, file_context)
+        # Stream AI response - check if we have user object to use provider pattern
+        user = self.db.query(User).filter(User.id == user_id).first()
+        provider_name = getattr(user, 'llm_provider', 'openai')  # Default to openai
+
+        if provider_name == 'openai' and api_key:
+            # Use legacy OpenAI client for backward compatibility
+            from .openai_client import OpenAIClient
+            client = OpenAIClient(api_key)
+            formatted_messages = format_messages_for_openai(history, file_context)
+        else:
+            # Use provider pattern
+            provider = self._get_llm_provider(user)
+
+            # Use provider-specific model
+            if provider_name == 'anthropic':
+                model = getattr(user, 'anthropic_model', 'claude-opus-4-6')
+            elif provider_name == 'openrouter':
+                model = getattr(user, 'openrouter_model', 'anthropic/claude-3.5-sonnet-20241022')
+            else:
+                model = user.openai_model
+
+            # Format messages with system prompt
+            system_prompt = None
+            if file_context:
+                system_prompt = "You are a helpful AI assistant."
+                system_prompt += f"\n\nYou have access to the following data from uploaded files:\n{file_context}\n\n"
+                system_prompt += "When asked about charts or visualizations:"
+                system_prompt += "- Directly analyze the data and provide insights"
+                system_prompt += "- Describe what the visualization would show"
+                system_prompt += "- Explain patterns and trends you observe"
+                system_prompt += "- DO NOT provide code, tutorials, or instructions on how to create charts"
+                system_prompt += "- The system will automatically generate the actual chart visualization for you"
+                system_prompt += "- Focus on interpreting the data, not explaining how to visualize it"
+                system_prompt += "\n\nExample of how to respond:"
+                system_prompt += "User: 'Create a pie chart showing sales by region'"
+                system_prompt += "Response: 'Here's a pie chart showing sales distribution by region. The West region has the highest sales at 45%, followed by the East region at 30%. The North and South regions contribute 15% and 10% respectively. This suggests the Western market is our strongest performing area.'"
+
+            formatted_messages = provider.format_messages(history, system_prompt)
 
         ai_content = ""
-        async for chunk in client.chat_completion(
-            messages=formatted_messages,
-            model=model,
-            stream=True
-        ):
-            ai_content += chunk
-            yield chunk
+        if provider_name == 'openai' and api_key and 'client' in locals():
+            # Use legacy OpenAI client
+            async for chunk in client.chat_completion(
+                messages=formatted_messages,
+                model=model,
+                stream=True
+            ):
+                ai_content += chunk
+                yield chunk
+        else:
+            # Use provider pattern
+            stream = await provider.chat_completion(
+                messages=formatted_messages,
+                model=model,
+                stream=True
+            )
+            async for chunk in stream:
+                ai_content += chunk
+                yield chunk
 
         # Save assistant message after streaming completes
         assistant_message = Message(
@@ -358,18 +472,65 @@ class ChatService:
             for msg in messages
         ]
 
-        # Stream new AI response
-        client = OpenAIClient(api_key)
-        formatted_messages = format_messages_for_openai(history, file_context)
+        # Stream new AI response - check if we have user object to use provider pattern
+        user = self.db.query(User).filter(User.id == user_id).first()
+        provider_name = getattr(user, 'llm_provider', 'openai')  # Default to openai
+
+        if provider_name == 'openai' and api_key:
+            # Use legacy OpenAI client for backward compatibility
+            from .openai_client import OpenAIClient
+            client = OpenAIClient(api_key)
+            formatted_messages = format_messages_for_openai(history, file_context)
+        else:
+            # Use provider pattern
+            provider = self._get_llm_provider(user)
+
+            # Use provider-specific model
+            if provider_name == 'anthropic':
+                model = getattr(user, 'anthropic_model', 'claude-opus-4-6')
+            elif provider_name == 'openrouter':
+                model = getattr(user, 'openrouter_model', 'anthropic/claude-3.5-sonnet-20241022')
+            else:
+                model = user.openai_model
+
+            # Format messages with system prompt
+            system_prompt = None
+            if file_context:
+                system_prompt = "You are a helpful AI assistant."
+                system_prompt += f"\n\nYou have access to the following data from uploaded files:\n{file_context}\n\n"
+                system_prompt += "When asked about charts or visualizations:"
+                system_prompt += "- Directly analyze the data and provide insights"
+                system_prompt += "- Describe what the visualization would show"
+                system_prompt += "- Explain patterns and trends you observe"
+                system_prompt += "- DO NOT provide code, tutorials, or instructions on how to create charts"
+                system_prompt += "- The system will automatically generate the actual chart visualization for you"
+                system_prompt += "- Focus on interpreting the data, not explaining how to visualize it"
+                system_prompt += "\n\nExample of how to respond:"
+                system_prompt += "User: 'Create a pie chart showing sales by region'"
+                system_prompt += "Response: 'Here's a pie chart showing sales distribution by region. The West region has the highest sales at 45%, followed by the East region at 30%. The North and South regions contribute 15% and 10% respectively. This suggests the Western market is our strongest performing area.'"
+
+            formatted_messages = provider.format_messages(history, system_prompt)
 
         ai_content = ""
-        async for chunk in client.chat_completion(
-            messages=formatted_messages,
-            model=model,
-            stream=True
-        ):
-            ai_content += chunk
-            yield chunk
+        if provider_name == 'openai' and api_key and 'client' in locals():
+            # Use legacy OpenAI client
+            async for chunk in client.chat_completion(
+                messages=formatted_messages,
+                model=model,
+                stream=True
+            ):
+                ai_content += chunk
+                yield chunk
+        else:
+            # Use provider pattern
+            stream = await provider.chat_completion(
+                messages=formatted_messages,
+                model=model,
+                stream=True
+            )
+            async for chunk in stream:
+                ai_content += chunk
+                yield chunk
 
         # Update the message
         message.content = ai_content

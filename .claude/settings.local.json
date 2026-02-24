@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd backend:*)",
+      "Bash(where python3:*)",
+      "Bash(test:*)",
+      "Bash(docker-compose build:*)",
+      "Bash(docker:*)",
+      "Bash(start:*)",
+      "Bash(cd frontend:*)",
+      "Bash(curl:*)",
+      "Bash(lsof:*)",
+      "Bash(taskkill:*)",
+      "Bash(netstat:*)",
+      "Bash(docker-compose ps:*)",
+      "Bash(where python:*)"
+    ]
+  }
+}

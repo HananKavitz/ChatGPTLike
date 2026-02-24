@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 class ApiKeyVerify(BaseModel):
     """Schema for API key verification"""
     api_key: str
+    provider: str = "openai"  # 'openai' or 'anthropic'
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
@@ -85,11 +86,26 @@ def update_me(
     db: Session = Depends(get_db)
 ):
     """Update current user settings"""
+    if user_update.llm_provider is not None:
+        current_user.llm_provider = user_update.llm_provider
+
     if user_update.openai_api_key is not None:
         current_user.openai_api_key = user_update.openai_api_key
 
     if user_update.openai_model is not None:
         current_user.openai_model = user_update.openai_model
+
+    if user_update.anthropic_api_key is not None:
+        current_user.anthropic_api_key = user_update.anthropic_api_key
+
+    if user_update.anthropic_model is not None:
+        current_user.anthropic_model = user_update.anthropic_model
+
+    if user_update.openrouter_api_key is not None:
+        current_user.openrouter_api_key = user_update.openrouter_api_key
+
+    if user_update.openrouter_model is not None:
+        current_user.openrouter_model = user_update.openrouter_model
 
     if user_update.password:
         current_user.hashed_password = get_password_hash(user_update.password)
@@ -105,35 +121,42 @@ async def verify_api_key(
     verify_data: ApiKeyVerify,
     current_user: User = Depends(get_current_user)
 ):
-    """Verify if an OpenAI API key is valid"""
-    logger.info(f"Verifying API key for user {current_user.id}")
+    """Verify if an LLM API key is valid"""
+    logger.info(f"Verifying {verify_data.provider} API key for user {current_user.id}")
 
     try:
-        from openai import AsyncOpenAI
+        from ..chat.providers.factory import LLMProviderFactory
 
-        client = AsyncOpenAI(api_key=verify_data.api_key)
+        # Create a provider instance for verification
+        provider = LLMProviderFactory.create(verify_data.provider, verify_data.api_key)
 
-        # Make a simple test request to verify the key
-        logger.debug("Sending test request to OpenAI API")
-        response = await client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": "test"}],
-            max_tokens=1
-        )
+        # Verify the key
+        is_valid = await provider.verify_api_key()
 
-        logger.info(f"API key verification successful for user {current_user.id}")
-        return {
-            "valid": True,
-            "message": "API key is valid"
-        }
+        if is_valid:
+            logger.info(f"{verify_data.provider} API key verification successful for user {current_user.id}")
+            return {
+                "valid": True,
+                "message": f"{verify_data.provider.capitalize()} API key is valid",
+                "provider": verify_data.provider
+            }
+        else:
+            logger.error(f"{verify_data.provider} API key verification failed for user {current_user.id}")
+            return {
+                "valid": False,
+                "message": f"Invalid {verify_data.provider.capitalize()} API key",
+                "provider": verify_data.provider
+            }
+
     except Exception as e:
         error_msg = str(e)
-        logger.error(f"API key verification failed for user {current_user.id}: {error_msg}", exc_info=True)
+        logger.error(f"{verify_data.provider} API key verification failed for user {current_user.id}: {error_msg}", exc_info=True)
 
         if "401" in error_msg or "Unauthorized" in error_msg:
             return {
                 "valid": False,
-                "message": "Invalid API key"
+                "message": f"Invalid {verify_data.provider.capitalize()} API key",
+                "provider": verify_data.provider
             }
         elif "429" in error_msg or "quota" in error_msg.lower():
             return {
